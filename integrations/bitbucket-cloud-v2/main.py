@@ -29,7 +29,7 @@ async def on_resync(kind: str) -> list[dict[Any, Any]]:
         resync_pull_requests(kind)
 
     # todo - add components
-    if kind == "component":
+    if kind == ObjectKind.COMPONENT:
         return []
 
     return []
@@ -64,7 +64,7 @@ async def resync_pull_requests(_: str) -> ASYNC_GENERATOR_RESYNC_TYPE:
 
 
 # Listen to the `start` event of the integration. Called once when the integration starts.
-@ocean.on_start()
-async def on_start() -> None:
-    # todo - register webhooks here
-    print("Starting bitbucket-cloud-v2 integration")
+# @ocean.on_start()
+# async def on_start() -> None:
+#     # todo - register webhooks here
+#     print("Starting bitbucket-cloud-v2 integration")
