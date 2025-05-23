@@ -1,15 +1,14 @@
 from typing import Any
 
-from clients.bitbucket import BitbucketClient
+from clients.bitbucket import BitbucketIntegrationClient
 from port_ocean.context.ocean import ocean
 from port_ocean.core.ocean_types import ASYNC_GENERATOR_RESYNC_TYPE
+from port_ocean.utils.async_iterators import stream_async_iterators_tasks
+from utils.enums import ObjectKind
 
 
-def init_bitbucket_client() -> BitbucketClient:
-    username = ocean.integration_config["bitbucket_username"]
-    password = ocean.integration_config["bitbucket_app_password"]
-    workspace = ocean.integration_config["bitbucket_workspace"]
-    return BitbucketClient(username, password, workspace)
+def init_bitbucket_client() -> BitbucketIntegrationClient:
+    return BitbucketIntegrationClient()
 
 
 # Required
@@ -18,91 +17,54 @@ def init_bitbucket_client() -> BitbucketClient:
 @ocean.on_resync()
 async def on_resync(kind: str) -> list[dict[Any, Any]]:
     # get all projects
-    if kind == "project":
-        return [
-            {
-                "uuid": f"project-{x}",
-                "name": f"project-{x}",
-                "url": f"https://bitbucket.org/project-{x}",
-            }
-            for x in range(5)
-        ]
+    if kind == ObjectKind.PROJECT:
+        resync_project(kind)
 
     # get all repositories
-    if kind == "repository":
-        return [
-            {
-                "uuid": f"repository-{x}",
-                "name": f"repository-{x}",
-                "url": f"https://bitbucket.org/project-{x}/repository-{x}",
-                "scm": "git",
-                "language": "python",
-                "description": f"some description {x}",
-            }
-            for x in range(5)
-        ]
+    if kind == ObjectKind.REPOSITORY:
+        resync_repository(kind)
 
     # get all pull requests
-    if kind == "pull-request":
-        return [
-            {
-                "uuid": f"pull-request-{x}-{y}",
-                "url": f"https://bitbucket.org/project-{x}/repository-{x}/pull-requests/{y}",
-                "state": "OPEN",
-                "author": f"user-{x % 3}",
-            }
-            for x in range(5)
-            for y in range(2)
-        ]
+    if kind == ObjectKind.PULL_REQUEST:
+        resync_pull_requests(kind)
 
-    # @todo - add components
+    # todo - add components
     if kind == "component":
         return []
 
     return []
 
 
-@ocean.on_resync("project")
+@ocean.on_resync(ObjectKind.PROJECT)
 async def resync_project(_: str) -> ASYNC_GENERATOR_RESYNC_TYPE:
-    for x in range(5):
-        yield [
-            {
-                "uuid": f"project-{x}",
-                "name": f"project-{x}",
-                "url": f"https://bitbucket.org/project-{x}",
-            }
+    client = init_bitbucket_client()
+    async for projects in client.get_projects():
+        yield projects
+
+
+@ocean.on_resync(ObjectKind.REPOSITORY)
+async def resync_repository(_: str) -> ASYNC_GENERATOR_RESYNC_TYPE:
+    client = init_bitbucket_client()
+    async for repositories in client.get_repositories():
+        yield repositories
+
+
+@ocean.on_resync(ObjectKind.PULL_REQUEST)
+async def resync_pull_requests(_: str) -> ASYNC_GENERATOR_RESYNC_TYPE:
+    client = init_bitbucket_client()
+    async for repositories in client.get_repositories():
+        tasks = [
+            client.get_pull_requests(
+                repository.get("slug", repository["name"].lower().replace(" ", "-"))
+            )
+            for repository in repositories
         ]
-
-
-@ocean.on_resync("repository")
-async def resync_project(_: str) -> ASYNC_GENERATOR_RESYNC_TYPE:
-    for x in range(5):
-        yield [
-            {
-                "uuid": f"repository-{x}",
-                "name": f"repository-{x}",
-                "url": f"https://bitbucket.org/project-{x}/repository-{x}",
-                "scm": "git",
-                "language": "python",
-                "description": f"some description {x}",
-            }
-        ]
-
-
-@ocean.on_resync("pull-request")
-async def resync_project(_: str) -> ASYNC_GENERATOR_RESYNC_TYPE:
-    for x in range(5):
-        yield [
-            {
-                "uuid": f"pull-request-{x}",
-                "url": f"https://bitbucket.org/project-{x}/repository-{x}/pull-requests/{x}",
-                "state": "OPEN",
-                "author": f"user-{x % 3}",
-            }
-        ]
+        async for prs in stream_async_iterators_tasks(*tasks):
+            yield prs
 
 
 # Listen to the `start` event of the integration. Called once when the integration starts.
 @ocean.on_start()
 async def on_start() -> None:
+    # todo - register webhooks here
     print("Starting bitbucket-cloud-v2 integration")
