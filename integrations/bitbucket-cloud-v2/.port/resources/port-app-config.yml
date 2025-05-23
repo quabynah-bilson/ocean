@@ -8,10 +8,10 @@ resources:
       entity:
         mappings:
           identifier: '.uuid | gsub("[{-}]"; "")'
-          title: ".url"
+          title: .name
           blueprint: '"bitbucketProject"'
           properties:
-            url: .url
+            url: '.links.html.href'
   - kind: repository
     selector:
       query: "true"
@@ -19,15 +19,15 @@ resources:
       entity:
         mappings:
           identifier: '.uuid | gsub("[{-}]"; "")'
-          title: ".url"
+          title: .name
           blueprint: '"bitbucketRepository"'
           properties:
-            url: .url
+            url: '.links.html.href'
             scm: .scm
             language: .language
             description: .description
           relations:
-            project: '(.url | split("/") | .[-2] | .)'
+            project: '.project.uuid | gsub("[{-}]"; "")'
 
   - kind: pull-request
     selector:
@@ -36,10 +36,10 @@ resources:
       entity:
         mappings:
           identifier: '.uuid | gsub("[{-}]"; "")'
-          title: '.uuid | gsub("[{-}]"; "")'
+          title: .title
           blueprint: '"bitbucketPullRequest"'
           properties:
             state: .state
-            author: .author
+            author: '.author.display_name'
           relations:
-            repository: '(.url | split("/") | .[-3] | .)'
+            repository: '.destination.repository.uuid | gsub("[{-}]"; "")'
