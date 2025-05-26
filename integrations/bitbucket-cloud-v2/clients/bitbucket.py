@@ -214,7 +214,7 @@ class BitbucketIntegrationClient:
             async with RATE_LIMITER:
                 try:
                     response = await self._send_api_request(
-                        url=url, params=params, method=method
+                        url, params=params, method=method
                     )
                     if response.status_code == 429:
                         break  # too many requests
