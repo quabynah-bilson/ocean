@@ -1,0 +1,22 @@
+[
+  {
+    "identifier": "githubRepository",
+    "title": "Repository",
+    "icon": "Repository",
+    "schema": {
+      "properties": {},
+      "required": []
+    },
+    "relations": {}
+  },
+  {
+    "identifier": "githubPullRequest",
+    "title": "Pull Request",
+    "icon": "Pull Request",
+    "schema": {
+      "properties": {},
+      "required": []
+    },
+    "relations": {}
+  }
+]

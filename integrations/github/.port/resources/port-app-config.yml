@@ -1,0 +1,41 @@
+deleteDependentEntities: true
+createMissingRelatedEntities: true
+resources:
+  - kind: repository
+    selector:
+      query: 'true'
+    port:
+      entity:
+        mappings:
+          identifier: .id
+          title: .name
+          blueprint: '"githubRepository"'
+          properties:
+            name: .name
+            url: .html_url
+            language: .language
+            branch: .default_branch
+            description: .description
+
+  - kind: pull-request
+    selector:
+      query: 'true'
+    port:
+      entity:
+        mappings:
+          identifier: .id
+          title: .name
+          blueprint: '"githubPullRequest"'
+          properties:
+
+  - kind: issue
+    selector:
+      query: 'true'
+    port:
+      entity:
+        mappings:
+          identifier: .id
+          title: .name
+          blueprint: '"githubIssue"'
+          properties:
+
