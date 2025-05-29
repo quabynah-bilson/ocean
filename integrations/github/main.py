@@ -1,15 +1,19 @@
-from enum import StrEnum
 from typing import Any
 
 from integration.clients.github import IntegrationClient
 from integration.utils.kind import ObjectKind
+from integrations.github.integration.clients.auth import AuthClient
 from port_ocean.context.ocean import ocean
 from port_ocean.core.ocean_types import ASYNC_GENERATOR_RESYNC_TYPE
 from port_ocean.utils.async_iterators import stream_async_iterators_tasks
 
 
 def init_client() -> IntegrationClient:
-    return IntegrationClient()
+    # config setup
+    access_token = ocean.integration_config.get("personal_access_token", None)
+    user_agent = ocean.integration_config.get("user_agent", None)
+    auth_client = AuthClient(access_token=access_token, user_agent=user_agent)
+    return IntegrationClient(auth_client)
 
 
 # resync all object kinds
