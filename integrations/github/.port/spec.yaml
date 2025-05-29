@@ -1,0 +1,31 @@
+description: GitHub integration for Port Ocean
+icon: GitHub
+title: GitHub
+features:
+  - type: exporter
+    section: Git Providers
+    resources:
+      - kind: repository
+      - kind: pull-request
+      - kind: issue
+      - kind: team
+      - kind: workflow
+saas:
+  enabled: true
+  liveEvents:
+    enabled: true
+configurations:
+  - name: personalAccessToken
+    description: A Personal Access Token is required for communicating with the GitHub REST APIs
+    required: true
+    type: string
+    sensitive: true
+  - name: userAgent
+    description: GitHub username for the current user required for `User Agent` in HTTP request headers
+    required: true
+    type: string
+    sensitive: true
+  - name: baseUrl
+    type: url
+    description: The base URL for GitHub's REST API
+    default: https://api.github.com

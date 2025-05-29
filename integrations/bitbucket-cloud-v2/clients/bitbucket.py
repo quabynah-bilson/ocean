@@ -67,7 +67,7 @@ class BitbucketIntegrationClient:
             )
         self.client.headers.update(self.headers)
 
-    # @cache_iterator_result()
+    @cache_iterator_result()
     async def get_projects(self) -> AsyncGenerator[list[dict[str, Any]], None]:
         """get all projects under the current workspace"""
         async for projects in self._fetch_data(
@@ -112,17 +112,18 @@ class BitbucketIntegrationClient:
         params: Optional[dict[str, Any]] = None,
         json_data: Optional[dict[str, Any]] = None,
         method: str = "GET",
-        return_full_response: bool = False,
-    ) -> Any:
+    ) -> dict[str, Any]:
         """Send a request to Bitbucket v2 API with error handling."""
         logger.info(f"Sending request to {url}")
-        response = await self.client.request(
-            method=method, url=url, params=params, json=json_data
-        )
-        logger.info(f"Response from BitBucket API: {response}")
+
         try:
+            response = await self.client.request(
+                method=method, url=url, params=params, json=json_data
+            )
+            logger.info(f"Response from BitBucket API: {response}")
             response.raise_for_status()
-            return response if return_full_response else response.json()
+            return response.json()
+
         except HTTPStatusError as e:
             if e.response.status_code == 404:
                 logger.warning(
@@ -131,6 +132,7 @@ class BitbucketIntegrationClient:
                 return {}
             logger.error(f"Bitbucket API error: {str(e)}")
             raise e
+
         except HTTPError as e:
             logger.error(f"Failed to send {method} request to url {url}: {str(e)}")
             raise e
@@ -154,13 +156,10 @@ class BitbucketIntegrationClient:
                     response = await self._send_api_request(
                         url, params=params, method=method
                     )
-                    if response.status_code == 429:
-                        break  # too many requests
-                    response_data = response.json()
-                    if values := response_data.get(data_key, []):
+                    if values := response.get(data_key, []):
                         yield values
                     # get the `next` page
-                    url = response_data.get("next")
+                    url = response.get("next")
                     if not url:
                         break  # end of page reached
                 except BaseException as e:

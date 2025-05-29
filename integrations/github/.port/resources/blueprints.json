@@ -1,0 +1,139 @@
+[
+  {
+    "identifier": "githubTeam",
+    "title": "Team",
+    "icon": "Team",
+    "schema": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "slug": {
+          "title": "Slug",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "url": {
+          "title": "URL",
+          "type": "string",
+          "format": "url"
+        }
+      },
+      "required": []
+    },
+    "relations": {}
+  },
+  {
+    "identifier": "githubRepository",
+    "title": "Repository",
+    "icon": "Repository",
+    "schema": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "url": {
+          "title": "URL",
+          "type": "string",
+          "format": "url"
+        },
+        "language": {
+          "title": "Language",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "branch": {
+          "title": "Default Branch",
+          "type": "string"
+        }
+      },
+      "required": []
+    },
+    "relations": {}
+  },
+  {
+    "identifier": "githubPullRequest",
+    "title": "Pull Request",
+    "icon": "Pull Request",
+    "schema": {
+      "properties": {
+        "commits": {
+          "title": "Commits",
+          "type": "number"
+        },
+        "changes": {
+          "title": "Changed Files",
+          "type": "number"
+        },
+        "url": {
+          "title": "URL",
+          "type": "string",
+          "format": "url"
+        }
+      },
+      "required": []
+    },
+    "relations": {
+      "repository": {
+        "title": "Repository",
+        "target": "githubRepository",
+        "required": true,
+        "many": false
+      }
+    }
+  },
+  {
+    "identifier": "githubIssue",
+    "title": "Issue",
+    "icon": "Issue",
+    "schema": {
+      "properties": {
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "title": "URL",
+          "type": "string",
+          "format": "url"
+        },
+        "state": {
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": []
+    },
+    "relations": {
+    }
+  },
+  {
+    "identifier": "githubWorkflow",
+    "title": "Workflow (Actions)",
+    "icon": "Workflow",
+    "schema": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "url": {
+          "title": "URL",
+          "type": "string",
+          "format": "url"
+        }
+      },
+      "required": []
+    },
+    "relations": {
+    }
+  }
+]
