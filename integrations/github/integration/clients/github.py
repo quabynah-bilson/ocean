@@ -7,12 +7,15 @@ from port_ocean.context.ocean import ocean
 from port_ocean.exceptions.base import BaseOceanException
 from port_ocean.utils import http_async_client
 from port_ocean.utils.cache import cache_iterator_result
-from .constants import DEFAULT_PAGE_SIZE
 from .rate_limiter import (
     RollingWindowLimiter,
     GitHubRateLimiter,
 )
 
+# constants
+DEFAULT_PAGE_SIZE = 100
+
+# rate limiter
 RATE_LIMITER: RollingWindowLimiter = RollingWindowLimiter(
     limit=GitHubRateLimiter.LIMIT,
     window=GitHubRateLimiter.WINDOW_TTL,
