@@ -4,9 +4,9 @@ from httpx import HTTPError, HTTPStatusError
 from loguru import logger
 
 from port_ocean.context.ocean import ocean
-from port_ocean.exceptions.base import BaseOceanException
 from port_ocean.utils import http_async_client
 from port_ocean.utils.cache import cache_iterator_result
+from .auth import AuthClient
 from .rate_limiter import (
     RollingWindowLimiter,
     GitHubRateLimiter,
@@ -23,30 +23,18 @@ RATE_LIMITER: RollingWindowLimiter = RollingWindowLimiter(
 
 
 class IntegrationClient:
-    def __init__(self):
+    def __init__(self, auth_client: AuthClient):
         logger.info("Initializing integration client")
+
+        # configure base url
+        self.base_url = ocean.integration_config["base_url"]
 
         # http client setup
         self._client = http_async_client
-
-        # config setup
-        self.base_url = ocean.integration_config["base_url"]
-        self._access_token = ocean.integration_config.get("personal_access_token", None)
-        self._user_agent = ocean.integration_config.get("user_agent", None)
-
-        if self._access_token is None:
-            raise BaseOceanException("Provide valid GitHub personal access token")
-
-        if self._user_agent is None:
-            raise BaseOceanException("Provide valid GitHub username as User-Agent")
+        self._auth_client = auth_client
 
         # configure headers for an http client
-        self._headers = {
-            "Accept": "application/vnd.github+json",
-            "Authorization": f"Bearer {self._access_token}",
-            "User-Agent": f"{self._user_agent}",
-        }
-        self._client.headers.update(self._headers)
+        self._client.headers.update(self._auth_client.get_headers())
 
     async def _send_api_request(
         self,
@@ -142,7 +130,7 @@ class IntegrationClient:
             "sort": "updated",
         }
         async for issues in self._fetch_data(
-            f"{self.base_url}/repos/{self._user_agent}/{repo_slug}/issues",
+            f"{self.base_url}/repos/{self._auth_client.get_user_agent()}/{repo_slug}/issues",
             params=params,
         ):
             yield issues
@@ -154,7 +142,7 @@ class IntegrationClient:
     ) -> AsyncGenerator[list[dict[str, Any]], None]:
         """get all workflows for a repo"""
         async for workflows in self._fetch_data(
-            f"{self.base_url}/repos/{self._user_agent}/{repo_slug}/actions/workflows",
+            f"{self.base_url}/repos/{self._auth_client.get_user_agent()}/{repo_slug}/actions/workflows",
             values_key="workflows",
         ):
             logger.info(f"Found {len(workflows)} workflows for {repo_slug}")
@@ -174,7 +162,7 @@ class IntegrationClient:
     ) -> AsyncGenerator[list[dict[str, Any]], None]:
         """get pull requests for a repo"""
         async for prs in self._fetch_data(
-            f"{self.base_url}/repos/{self._user_agent}/{repo_slug}/pulls"
+            f"{self.base_url}/repos/{self._auth_client.get_user_agent()}/{repo_slug}/pulls"
         ):
             logger.info(f"Found {len(prs)} prs for {repo_slug}")
             yield prs

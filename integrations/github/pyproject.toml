@@ -111,3 +111,6 @@ exclude = '''
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 addopts = "-vv -n auto ./tests"
+
+[pytest]
+python_files = "test_*.py"
