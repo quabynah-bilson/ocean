@@ -20,6 +20,11 @@ configurations:
     required: true
     type: string
     sensitive: true
+  - name: userAgent
+    description: GitHub username for the current user required for `User Agent` in HTTP request headers
+    required: true
+    type: string
+    sensitive: true
   - name: baseUrl
     type: url
     description: The base URL for GitHub's REST API

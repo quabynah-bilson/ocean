@@ -1,13 +1,26 @@
 deleteDependentEntities: true
 createMissingRelatedEntities: true
 resources:
+  - kind: team
+    selector:
+      query: 'true'
+    port:
+      entity:
+        mappings:
+          identifier: '(.id|tostring)'
+          title: .name
+          blueprint: '"githubTeam"'
+          properties:
+            name: .name
+            url: .html_url
+
   - kind: repository
     selector:
       query: 'true'
     port:
       entity:
         mappings:
-          identifier: .id
+          identifier: '(.id|tostring)'
           title: .name
           blueprint: '"githubRepository"'
           properties:
@@ -23,10 +36,15 @@ resources:
     port:
       entity:
         mappings:
-          identifier: .id
-          title: .name
+          identifier: '(.id|tostring)'
+          title: .title
           blueprint: '"githubPullRequest"'
           properties:
+            commits: .commits
+            changes: .changed_files
+            url: .html_url
+          relations:
+            repository: '(.head.repo.id|tostring)'
 
   - kind: issue
     selector:
@@ -34,8 +52,26 @@ resources:
     port:
       entity:
         mappings:
-          identifier: .id
-          title: .name
+          identifier: '(.id|tostring)'
+          title: .title
           blueprint: '"githubIssue"'
           properties:
+            title: .title
+            url: .html_url
+          relations:
+            repository: '(.id|tostring)' #todo - get the repo reference
 
+  - kind: workflow
+    selector:
+      query: 'true'
+    port:
+      entity:
+        mappings:
+          identifier: '(.id|tostring)'
+          title: .name
+          blueprint: '"githubWorkflow"'
+          properties:
+            name: .name
+            url: .html_url
+          relations:
+            repository: '(.id|tostring)' #todo - get the repo reference
