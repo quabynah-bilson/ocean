@@ -13,6 +13,8 @@ resources:
           properties:
             name: .name
             url: .html_url
+            slug: .slug
+            description: .description
 
   - kind: repository
     selector:
@@ -58,8 +60,7 @@ resources:
           properties:
             title: .title
             url: .html_url
-          relations:
-            repository: '(.id|tostring)' #todo - get the repo reference
+            state: .state
 
   - kind: workflow
     selector:
@@ -73,5 +74,3 @@ resources:
           properties:
             name: .name
             url: .html_url
-          relations:
-            repository: '(.id|tostring)' #todo - get the repo reference
