@@ -1,3 +1,4 @@
+from enum import StrEnum
 from typing import Any
 
 from integration.clients.github import IntegrationClient
