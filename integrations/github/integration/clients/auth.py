@@ -1,7 +1,5 @@
 from typing import Optional
 
-from loguru import logger
-
 from .exceptions import TokenNotFoundException, UserAgentNotFoundException
 
 
@@ -11,8 +9,6 @@ class AuthClient:
         access_token: Optional[str] = None,
         user_agent: Optional[str] = None,
     ):
-        logger.info("Initializing AuthClient")
-
         # access token config setup
         if access_token is None:
             raise TokenNotFoundException("Provide valid GitHub personal access token")

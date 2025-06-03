@@ -20,7 +20,7 @@ configurations:
     required: true
     type: string
     sensitive: true
-  - name: userAgent
+  - name: githubOrganization
     description: GitHub username for the current user required for `User Agent` in HTTP request headers
     required: true
     type: string

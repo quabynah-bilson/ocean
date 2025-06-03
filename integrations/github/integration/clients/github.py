@@ -43,7 +43,7 @@ class IntegrationClient:
         json_data: Optional[dict[str, Any]] = None,
         method: str = "GET",
         values_key: Optional[str] = None,
-    ) -> list[dict[str, Any]]:
+    ) -> tuple[list[dict[str, Any]], dict[str, str]]:
         """Send a request to Bitbucket v2 API with error handling."""
         logger.info(f"Sending request to {url}")
 
@@ -51,18 +51,22 @@ class IntegrationClient:
             response = await self._client.request(
                 method=method, url=url, params=params, json=json_data
             )
-            logger.info(f"Response from API: {response}")
             response.raise_for_status()
-            if values_key is not None:
-                return response.json().get(values_key, [])
-            return response.json()
+
+            if values_key is None:
+                data = response.json()
+            else:
+                data = response.json().get(values_key, [])
+
+            # get response headers
+            return data, dict(response.headers)
 
         except HTTPStatusError as e:
             if e.response.status_code == 404:
                 logger.warning(
                     f"Requested resource not found: {url}; message: {str(e)}"
                 )
-                return []
+                return [], {}
             logger.error(f"API error: {str(e)}")
             raise e
 
@@ -78,35 +82,49 @@ class IntegrationClient:
         values_key: Optional[str] = None,
     ) -> AsyncGenerator[list[dict[str, Any]], None]:
         """handles HTTP calls to the API server"""
-        page = 1
 
         if params is None:
             params = {
                 "per_page": DEFAULT_PAGE_SIZE,
-                "page": page,
+                "page": 1,
                 "sort": "asc",
             }
 
         while True:
             async with RATE_LIMITER:
                 try:
-                    logger.info(f"Fetching page {params.get("page")}")
-                    response = await self._send_api_request(
+                    response, headers = await self._send_api_request(
                         method=method, url=url, params=params, values_key=values_key
                     )
-                    logger.info(f"Fetched {len(response)} data from {url}")
+                    logger.info(f"Fetched {len(response)} items from {url}")
                     yield response
 
-                    if len(response) < DEFAULT_PAGE_SIZE:
-                        logger.info(f"No more data from {url}")
-                        break  # end of page reached
+                    if headers is None:
+                        # no headers available, break the loop
+                        break
 
-                    # update the params to fetch from the next page, if available
-                    params = {
-                        "per_page": DEFAULT_PAGE_SIZE,
-                        "page": page + 1,
-                        "sort": "asc",
-                    }
+                    # get the `Link` header from the last response
+                    link_header = headers.get("link")
+
+                    if not link_header:
+                        # no new pages
+                        logger.info(f"Link header not found for {url}. Skipping")
+                        break
+
+                    for link in link_header.split(","):
+                        parts = link.strip().split(";")
+                        url = parts[0].strip("<>")
+                        rel = parts[1].strip()
+                        if 'rel="next"' in rel:
+                            # update `url` and params for the next request
+                            url = url
+                            params = None
+                            logger.info(f"Next page: {url}")
+                            break
+                    else:  # no break occurred - no next link found
+                        logger.info(f"No more pages available from {url}")
+                        break
+
                 except BaseException as e:
                     logger.error(f"An error occurred while fetching {url}: {e}")
                     yield []
@@ -118,7 +136,6 @@ class IntegrationClient:
         async for repos in self._fetch_data(f"{self.base_url}/user/repos"):
             yield repos
 
-    @cache_iterator_result()
     async def get_issues(
         self,
         repo_slug: str,
@@ -135,7 +152,6 @@ class IntegrationClient:
         ):
             yield issues
 
-    @cache_iterator_result()
     async def get_workflows(
         self,
         repo_slug: str,
@@ -148,14 +164,12 @@ class IntegrationClient:
             logger.info(f"Found {len(workflows)} workflows for {repo_slug}")
             yield workflows
 
-    @cache_iterator_result()
     async def get_teams(self) -> AsyncGenerator[list[dict[str, Any]], None]:
         """get all teams for the current user"""
         async for teams in self._fetch_data(f"{self.base_url}/user/teams"):
             logger.info(f"Found {len(teams)} teams for current user")
             yield teams
 
-    @cache_iterator_result()
     async def get_pull_requests(
         self,
         repo_slug: str,
