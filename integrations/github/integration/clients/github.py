@@ -99,10 +99,6 @@ class IntegrationClient:
                     logger.info(f"Fetched {len(response)} items from {url}")
                     yield response
 
-                    if headers is None:
-                        # no headers available, break the loop
-                        break
-
                     # get the `Link` header from the last response
                     link_header = headers.get("link")
 

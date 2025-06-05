@@ -1,8 +1,9 @@
 from typing import Any
 
+from integration.clients.auth import AuthClient
 from integration.clients.github import IntegrationClient
 from integration.utils.kind import ObjectKind
-from integration.clients.auth import AuthClient
+from integration.webhook.processor.repository import RepositoryWebhookProcessor
 from port_ocean.context.ocean import ocean
 from port_ocean.core.ocean_types import ASYNC_GENERATOR_RESYNC_TYPE
 from port_ocean.utils.async_iterators import stream_async_iterators_tasks
@@ -91,3 +92,7 @@ async def resync_pull_requests(kind: str) -> ASYNC_GENERATOR_RESYNC_TYPE:
             ]
             async for prs in stream_async_iterators_tasks(*tasks):
                 yield prs
+
+
+# @todo - repository
+ocean.add_webhook_processor("/webhook", RepositoryWebhookProcessor)
