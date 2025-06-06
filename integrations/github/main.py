@@ -1,9 +1,10 @@
 from typing import Any
 
-from integration.clients.auth import AuthClient
-from integration.clients.github import IntegrationClient
+from loguru import logger
+
+from integration.github.client import IntegrationClient
 from integration.utils.kind import ObjectKind
-from integration.webhook.processor.repository import RepositoryWebhookProcessor
+from integrations.github.integration.utils.auth import AuthClient
 from port_ocean.context.ocean import ocean
 from port_ocean.core.ocean_types import ASYNC_GENERATOR_RESYNC_TYPE
 from port_ocean.utils.async_iterators import stream_async_iterators_tasks
@@ -94,5 +95,26 @@ async def resync_pull_requests(kind: str) -> ASYNC_GENERATOR_RESYNC_TYPE:
                 yield prs
 
 
+@ocean.on_start()
+async def setup_webhooks() -> None:
+    base_url = ocean.app.base_url
+    webhook_secret = ocean.integration_config.get("webhook_secret", None)
+
+    if webhook_secret is None:
+        logger.warning(
+            f"webhook_secret not configured for GitHub integration. Skipping webhooks."
+        )
+        return
+
+    if not base_url:
+        logger.warning(
+            f"base_url not configured for GitHub integration. Skipping webhooks."
+        )
+        return
+
+    # setup webhooks
+    logger.info(f"Setting base url to {base_url}")
+    # @todo - initialize webhooks here
+
 # @todo - repository
-ocean.add_webhook_processor("/webhook", RepositoryWebhookProcessor)
+# ocean.add_webhook_processor("/webhook", RepositoryWebhookProcessor)

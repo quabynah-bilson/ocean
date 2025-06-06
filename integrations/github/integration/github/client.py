@@ -3,10 +3,10 @@ from typing import AsyncGenerator, Any, Optional
 from httpx import HTTPError, HTTPStatusError
 from loguru import logger
 
+from integrations.github.integration.utils.auth import AuthClient
 from port_ocean.context.ocean import ocean
 from port_ocean.utils import http_async_client
 from port_ocean.utils.cache import cache_iterator_result
-from .auth import AuthClient
 from .rate_limiter import (
     RollingWindowLimiter,
     GitHubRateLimiter,
@@ -37,12 +37,12 @@ class IntegrationClient:
         self._client.headers.update(self._auth_client.get_headers())
 
     async def _send_api_request(
-        self,
-        url: str,
-        params: Optional[dict[str, Any]] = None,
-        json_data: Optional[dict[str, Any]] = None,
-        method: str = "GET",
-        values_key: Optional[str] = None,
+            self,
+            url: str,
+            params: Optional[dict[str, Any]] = None,
+            json_data: Optional[dict[str, Any]] = None,
+            method: str = "GET",
+            values_key: Optional[str] = None,
     ) -> tuple[list[dict[str, Any]], dict[str, str]]:
         """Send a request to Bitbucket v2 API with error handling."""
         logger.info(f"Sending request to {url}")
@@ -75,11 +75,11 @@ class IntegrationClient:
             raise e
 
     async def _fetch_data(
-        self,
-        url: str,
-        params: Optional[dict[str, Any]] = None,
-        method: str = "GET",
-        values_key: Optional[str] = None,
+            self,
+            url: str,
+            params: Optional[dict[str, Any]] = None,
+            method: str = "GET",
+            values_key: Optional[str] = None,
     ) -> AsyncGenerator[list[dict[str, Any]], None]:
         """handles HTTP calls to the API server"""
 
@@ -133,8 +133,8 @@ class IntegrationClient:
             yield repos
 
     async def get_issues(
-        self,
-        repo_slug: str,
+            self,
+            repo_slug: str,
     ) -> AsyncGenerator[list[dict[str, Any]], None]:
         """get all issues for a repo"""
         params = {
@@ -143,19 +143,19 @@ class IntegrationClient:
             "sort": "updated",
         }
         async for issues in self._fetch_data(
-            f"{self.base_url}/repos/{self._auth_client.get_user_agent()}/{repo_slug}/issues",
-            params=params,
+                f"{self.base_url}/repos/{self._auth_client.get_user_agent()}/{repo_slug}/issues",
+                params=params,
         ):
             yield issues
 
     async def get_workflows(
-        self,
-        repo_slug: str,
+            self,
+            repo_slug: str,
     ) -> AsyncGenerator[list[dict[str, Any]], None]:
         """get all workflows for a repo"""
         async for workflows in self._fetch_data(
-            f"{self.base_url}/repos/{self._auth_client.get_user_agent()}/{repo_slug}/actions/workflows",
-            values_key="workflows",
+                f"{self.base_url}/repos/{self._auth_client.get_user_agent()}/{repo_slug}/actions/workflows",
+                values_key="workflows",
         ):
             logger.info(f"Found {len(workflows)} workflows for {repo_slug}")
             yield workflows
@@ -167,12 +167,12 @@ class IntegrationClient:
             yield teams
 
     async def get_pull_requests(
-        self,
-        repo_slug: str,
+            self,
+            repo_slug: str,
     ) -> AsyncGenerator[list[dict[str, Any]], None]:
         """get pull requests for a repo"""
         async for prs in self._fetch_data(
-            f"{self.base_url}/repos/{self._auth_client.get_user_agent()}/{repo_slug}/pulls"
+                f"{self.base_url}/repos/{self._auth_client.get_user_agent()}/{repo_slug}/pulls"
         ):
             logger.info(f"Found {len(prs)} prs for {repo_slug}")
             yield prs

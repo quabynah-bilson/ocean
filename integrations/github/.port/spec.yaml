@@ -29,3 +29,7 @@ configurations:
     type: url
     description: The base URL for GitHub's REST API
     default: https://api.github.com
+  - name: webhookSecret
+    type: string
+    description: Webhook secret for GitHub's Webhook
+    sensitive: true
