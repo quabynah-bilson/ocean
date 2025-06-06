@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Optional
 
+from pydantic import BaseModel
+
 
 class GitHubWebhookEvent(StrEnum):
     """preferred events for GitHub webhooks"""
@@ -19,7 +21,7 @@ class GitHubWebhookEventType(StrEnum):
 
 
 @dataclass
-class WebhookEventPayloadConfig:
+class WebhookEventPayloadConfig(BaseModel):
     """config section for webhook payload"""
     url: str
     content_type: str = "json"
@@ -28,7 +30,7 @@ class WebhookEventPayloadConfig:
 
 
 @dataclass
-class WebhookEventPayload:
+class WebhookEventPayload(BaseModel):
     """payload for webhook event when created/updated"""
     type: GitHubWebhookEventType
     active: bool
@@ -40,7 +42,7 @@ class WebhookEventPayload:
 
 
 @dataclass
-class CreateWebhookEventRequest:
+class CreateWebhookEventRequest(BaseModel):
     name: str
     events: list[GitHubWebhookEvent]
     config: WebhookEventPayloadConfig

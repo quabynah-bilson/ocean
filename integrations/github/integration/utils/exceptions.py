@@ -11,3 +11,9 @@ class UserAgentNotFoundException(OceanAbortException):
     """called when a user agent is not provided"""
 
     pass
+
+
+class MissingWebhookSecretException(OceanAbortException):
+    """called when a webhook secret is not provided"""
+
+    pass

@@ -2,12 +2,13 @@ from typing import Any
 
 from loguru import logger
 
-from integration.github.client import IntegrationClient
-from integration.utils.kind import ObjectKind
-from integrations.github.integration.utils.auth import AuthClient
 from port_ocean.context.ocean import ocean
 from port_ocean.core.ocean_types import ASYNC_GENERATOR_RESYNC_TYPE
 from port_ocean.utils.async_iterators import stream_async_iterators_tasks
+from .integration.github.client import IntegrationClient
+from .integration.utils.auth import AuthClient
+from .integration.utils.kind import ObjectKind
+from .integration.webhook.processor.repository import RepositoryWebhookProcessor
 
 
 def init_client() -> IntegrationClient:
@@ -16,6 +17,13 @@ def init_client() -> IntegrationClient:
     org = ocean.integration_config.get("github_organization", None)
     auth_client = AuthClient(access_token=access_token, user_agent=org)
     return IntegrationClient(auth_client)
+
+
+def init_repo_webhook_processor() -> RepositoryWebhookProcessor:
+    access_token = ocean.integration_config.get("personal_access_token", None)
+    org = ocean.integration_config.get("github_organization", None)
+    auth_client = AuthClient(access_token=access_token, user_agent=org)
+    return RepositoryWebhookProcessor(auth_client)
 
 
 # resync all object kinds
@@ -114,7 +122,18 @@ async def setup_webhooks() -> None:
 
     # setup webhooks
     logger.info(f"Setting base url to {base_url}")
-    # @todo - initialize webhooks here
+    repo_whp = init_repo_webhook_processor()
+    client = init_client()
+    async for repositories in client.get_repositories():
+        tasks = [
+            repo_whp.create_webhook(
+                webhook_url=f"{base_url}/integrations/webhook",
+                repo_slug=repo.get("name"),
+            )
+            for repo in repositories
+        ]
+        async for webhooks in stream_async_iterators_tasks(*tasks):
+            logger.info(f"webhooks created: {webhooks}")
 
-# @todo - repository
-# ocean.add_webhook_processor("/webhook", RepositoryWebhookProcessor)
+
+ocean.add_webhook_processor("/webhook", RepositoryWebhookProcessor)

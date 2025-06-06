@@ -33,3 +33,7 @@ configurations:
     type: string
     description: Webhook secret for GitHub's Webhook
     sensitive: true
+  - name: appHost
+    required: false
+    type: url
+    description: The host of the Port Ocean app. Used for setting up the webhooks against the GitHub.
