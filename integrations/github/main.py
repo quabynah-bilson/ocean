@@ -1,29 +1,30 @@
 from typing import Any
 
-from loguru import logger
-
 from port_ocean.context.ocean import ocean
 from port_ocean.core.ocean_types import ASYNC_GENERATOR_RESYNC_TYPE
 from port_ocean.utils.async_iterators import stream_async_iterators_tasks
 from .integration.github.client import IntegrationClient
 from .integration.utils.auth import AuthClient
 from .integration.utils.kind import ObjectKind
+from .integration.webhook.client import WebhookClient
 from .integration.webhook.processor.repository import RepositoryWebhookProcessor
 
 
-def init_client() -> IntegrationClient:
-    # config setup
+def init_auth_client() -> "AuthClient":
     access_token = ocean.integration_config.get("personal_access_token", None)
     org = ocean.integration_config.get("github_organization", None)
-    auth_client = AuthClient(access_token=access_token, user_agent=org)
-    return IntegrationClient(auth_client)
+    return AuthClient(access_token=access_token, user_agent=org)
 
 
-def init_repo_webhook_processor() -> RepositoryWebhookProcessor:
-    access_token = ocean.integration_config.get("personal_access_token", None)
-    org = ocean.integration_config.get("github_organization", None)
-    auth_client = AuthClient(access_token=access_token, user_agent=org)
-    return RepositoryWebhookProcessor(auth_client)
+def init_client() -> "IntegrationClient":
+    return IntegrationClient(init_auth_client())
+
+
+def init_webhook_client() -> "WebhookClient":
+    return WebhookClient(
+        client=init_client(),
+        auth_client=init_auth_client(),
+    )
 
 
 # resync all object kinds
@@ -105,35 +106,8 @@ async def resync_pull_requests(kind: str) -> ASYNC_GENERATOR_RESYNC_TYPE:
 
 @ocean.on_start()
 async def setup_webhooks() -> None:
-    base_url = ocean.app.base_url
-    webhook_secret = ocean.integration_config.get("webhook_secret", None)
-
-    if webhook_secret is None:
-        logger.warning(
-            f"webhook_secret not configured for GitHub integration. Skipping webhooks."
-        )
-        return
-
-    if not base_url:
-        logger.warning(
-            f"base_url not configured for GitHub integration. Skipping webhooks."
-        )
-        return
-
-    # setup webhooks
-    logger.info(f"Setting base url to {base_url}")
-    repo_whp = init_repo_webhook_processor()
-    client = init_client()
-    async for repositories in client.get_repositories():
-        tasks = [
-            repo_whp.create_webhook(
-                webhook_url=f"{base_url}/integrations/webhook",
-                repo_slug=repo.get("name"),
-            )
-            for repo in repositories
-        ]
-        async for webhooks in stream_async_iterators_tasks(*tasks):
-            logger.info(f"webhooks created: {webhooks}")
+    client = init_webhook_client()
+    await client.setup_webhooks()
 
 
 ocean.add_webhook_processor("/webhook", RepositoryWebhookProcessor)

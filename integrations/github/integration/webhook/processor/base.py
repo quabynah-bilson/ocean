@@ -1,168 +1,113 @@
+import hashlib
+import hmac
+import json
 from abc import abstractmethod, ABC
-from typing import Optional, Any, AsyncGenerator, Coroutine
+from typing import Any, Coroutine
 
-from httpx import HTTPStatusError, HTTPError
 from loguru import logger
 
-from integrations.github.integration.utils.auth import AuthClient
-from integrations.github.integration.utils.exceptions import (
-    MissingWebhookSecretException,
-)
 from port_ocean.context.ocean import ocean
-from port_ocean.utils import http_async_client
-from .events import (
-    GitHubWebhookEventType,
-    CreateWebhookEventRequest,
-    WebhookEventPayloadConfig,
-    GitHubWebhookEvent,
+from port_ocean.core.handlers.port_app_config.models import ResourceConfig
+from port_ocean.core.handlers.webhook.abstract_webhook_processor import (
+    AbstractWebhookProcessor,
 )
+from port_ocean.core.handlers.webhook.webhook_event import (
+    EventPayload,
+    EventHeaders,
+    WebhookEventRawResults,
+)
+from .events import GitHubWebhookEventType
 
 
-class BaseWebhookProcessor(ABC):
-    retry_threshold: int = 10
-    initial_delay: float = 1.0
+class BaseWebhookProcessor(AbstractWebhookProcessor, ABC):
+    """base processor for webhook events"""
 
-    def __init__(self, auth_client: AuthClient) -> None:
-        self.base_url = ocean.integration_config["base_url"]
-        self.retry_threshold = 10
-        self._client = http_async_client
-        self._client.headers.update(auth_client.get_headers())
-
-    async def _send_api_request(
-        self,
-        url: str,
-        params: Optional[dict[str, Any]] = None,
-        json_data: Optional[dict[str, Any]] = None,
-        method: str = "GET",
-        values_key: Optional[str] = None,
-        is_response_list: bool = True,
-    ) -> tuple[Any, dict[str, str]]:
-        """Send a request to GitHub API with error handling."""
-        logger.info(f"Sending request to {url}")
-
-        try:
-            response = await self._client.request(
-                method=method, url=url, params=params, json=json_data
-            )
-            response.raise_for_status()
-
-            if values_key is None:
-                data = response.json()
-            else:
-                data = response.json().get(values_key, [])
-
-            # get response headers
-            return data, dict(response.headers)
-
-        except HTTPStatusError as e:
-            if e.response.status_code == 404:
-                logger.warning(
-                    f"Requested resource not found: {url}; message: {str(e)}"
-                )
-                if is_response_list:
-                    return [], {}
-                return {}, {}
-            logger.error(f"API error: {str(e)}")
-            raise e
-
-        except HTTPError as e:
-            logger.error(f"Failed to send {method} request to url {url}: {str(e)}")
-            raise e
-
-    async def _fetch_data(
-        self,
-        url: str,
-        params: Optional[dict[str, Any]] = None,
-        method: str = "GET",
-        values_key: Optional[str] = None,
-        json_data: Optional[dict[str, Any]] = None,
-    ) -> AsyncGenerator[list[dict[str, Any]], None]:
-        """handles HTTP calls to the API server"""
-
-        try:
-            response, headers = await self._send_api_request(
-                method=method,
-                url=url,
-                params=params,
-                values_key=values_key,
-                json_data=json_data,
-            )
-            logger.info(f"Fetched {len(response)} items from {url}")
-            yield response
-
-        except BaseException as e:
-            logger.error(f"An error occurred while fetching {url}: {e}")
-            yield []
+    def __init__(self):
+        super().__init__()
+        self.webhook_secret = ocean.integration_config.get("webhook_secret", None)
 
     def on_failed(self, exception: BaseException) -> None:
         """handle failed webhook"""
-        logger.error(
+        logger.warning(
             f"Webhook failed with exception: {str(exception)}", exc_info=exception
         )
 
-    async def create_webhook(
-        self,
-        webhook_url: str,
-        repo_slug: str,
-        name: str = "web",
-        event_type: GitHubWebhookEventType = GitHubWebhookEventType.REPOSITORY,
-    ) -> Coroutine[Any, Any, None] | None:
-        """subscribe to webhook"""
-        webhook_secret = ocean.integration_config.get("webhook_secret", None)
-        if webhook_secret is None:
-            raise MissingWebhookSecretException("Webhook secret was not provided")
+        # retry webhook
+        # @todo - implement retry strategies
 
-        # validate webhook
-        exists = await self.validate_webhook(
-            repo_slug=repo_slug, target_url=webhook_url, event_type=event_type
-        )
-        if exists:
-            logger.warning(f"Webhook already exists for repo {repo_slug}; skipping")
-            return None
-
-        webhook_request = CreateWebhookEventRequest(
-            name=name,
-            events=[
-                GitHubWebhookEvent.ISSUES,
-                GitHubWebhookEvent.REPOSITORY,
-                GitHubWebhookEvent.PR,
-                GitHubWebhookEvent.WORKFLOW,
-                GitHubWebhookEvent.TEAM,
-            ],
-            config=WebhookEventPayloadConfig(
-                url=webhook_url,
-                secret=webhook_secret,
-            ),
-        )
-        try:
-            logger.info(f"Creating webhook: {name} => {webhook_url}")
-            response, _ = await self._send_api_request(
-                method="POST",
-                url=f"{self.base_url}/repos/{repo_slug}/hooks",
-                json_data=dict(webhook_request),
-                is_response_list=False,
+    def _verify_signature(self, signature: str, data: dict[str, Any]) -> bool:
+        if self.webhook_secret is None:
+            logger.warning(
+                f"webhook_secret not configured for GitHub integration. Skipping webhooks."
             )
-            logger.info(f"Created webhook: {name} => {response.get('url')}")
+            return False
 
-        except BaseException as e:
-            self.on_failed(e)
+        # encode web secret
+        encoded_web_secret = (
+            self.webhook_secret.encode()
+            if isinstance(self.webhook_secret, str)
+            else None
+        )
+
+        # serialize payload to bytes
+        payload = json.dumps(data, separators=(",", ":"), sort_keys=True).encode(
+            "utf-8"
+        )
+
+        # compare digest with secret
+        mac = hmac.new(encoded_web_secret, msg=payload, digestmod=hashlib.sha256)
+        expected = f"sha256={mac.hexdigest()}"
+        return hmac.compare_digest(expected, signature)
+
+    async def authenticate(self, payload: EventPayload, headers: EventHeaders) -> bool:
+        """authenticate webhook based on payload and headers"""
+        raise NotImplementedError()
+
+    async def validate_payload(self, payload: EventPayload) -> bool:
+        """validate the event payload"""
+        required_fields = ["hook", "sender"]
+        return all(field in payload for field in required_fields)
+
+    async def handle_event(
+        self, payload: EventPayload, resource: ResourceConfig
+    ) -> bool:
+        """handle webhook event"""
+        results = await self.process_event(payload, resource.kind)
+        return results is not None
+
+    @abstractmethod
+    async def process_event(
+        self, payload: EventPayload, kind: str
+    ) -> WebhookEventRawResults:
+        """process event payload"""
+        raise NotImplementedError()
 
     @abstractmethod
     def get_event_type(self) -> GitHubWebhookEventType:
         """return the type of event of the webhook"""
-        pass
+        raise NotImplementedError()
 
+    @abstractmethod
     async def validate_webhook(
         self,
         repo_slug: str,
         target_url: str,
         event_type: GitHubWebhookEventType,
     ) -> bool:
-        """checks if a webhook already exists"""
-        async for hooks in self._fetch_data(f"{self.base_url}/repos/{repo_slug}/hooks"):
-            for hook in hooks:
-                if hook.get("type", "") != event_type:
-                    continue
-                if hook.get("config", {}).get("url") == target_url:
-                    return True
-        return False
+        """validate webhook event"""
+        pass
+
+    @abstractmethod
+    async def create_webhook(
+        self,
+        webhook_url: str,
+        repo_slug: str,
+        name: str = "ocean-port-integration",
+    ) -> Coroutine[Any, Any, None] | None:
+        """create webhook event"""
+        raise NotImplementedError()
+
+    @abstractmethod
+    async def subscribe_to_webhooks(self):
+        """subscribe to webhooks: iteratively call `self.create_webhook()`"""
+        raise NotImplementedError()
