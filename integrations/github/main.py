@@ -3,11 +3,11 @@ from typing import Any
 from port_ocean.context.ocean import ocean
 from port_ocean.core.ocean_types import ASYNC_GENERATOR_RESYNC_TYPE
 from port_ocean.utils.async_iterators import stream_async_iterators_tasks
-from .integration.github.client import IntegrationClient
+from .integration.github_client import IntegrationClient
 from .integration.utils.auth import AuthClient
 from .integration.utils.kind import ObjectKind
-from .integration.webhook.client import WebhookClient
-from .integration.webhook.processor.repository import RepositoryWebhookProcessor
+from .integration.webhook_client import WebhookClient
+from .integration.webhook_processor.repository import RepositoryWebhookProcessor
 
 
 def init_auth_client() -> "AuthClient":

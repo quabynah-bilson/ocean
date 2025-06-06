@@ -2,7 +2,7 @@ import hashlib
 import hmac
 import json
 from abc import abstractmethod, ABC
-from typing import Any, Coroutine
+from typing import Any, Coroutine, Optional
 
 from loguru import logger
 
@@ -16,7 +16,7 @@ from port_ocean.core.handlers.webhook.webhook_event import (
     EventHeaders,
     WebhookEventRawResults,
 )
-from .events import GitHubWebhookEventType
+from .events import GitHubWebhookEventType, CreateWebhookEventRequest
 
 
 class BaseWebhookProcessor(AbstractWebhookProcessor, ABC):
@@ -25,15 +25,6 @@ class BaseWebhookProcessor(AbstractWebhookProcessor, ABC):
     def __init__(self):
         super().__init__()
         self.webhook_secret = ocean.integration_config.get("webhook_secret", None)
-
-    def on_failed(self, exception: BaseException) -> None:
-        """handle failed webhook"""
-        logger.warning(
-            f"Webhook failed with exception: {str(exception)}", exc_info=exception
-        )
-
-        # retry webhook
-        # @todo - implement retry strategies
 
     def _verify_signature(self, signature: str, data: dict[str, Any]) -> bool:
         if self.webhook_secret is None:
@@ -59,10 +50,6 @@ class BaseWebhookProcessor(AbstractWebhookProcessor, ABC):
         expected = f"sha256={mac.hexdigest()}"
         return hmac.compare_digest(expected, signature)
 
-    async def authenticate(self, payload: EventPayload, headers: EventHeaders) -> bool:
-        """authenticate webhook based on payload and headers"""
-        raise NotImplementedError()
-
     async def validate_payload(self, payload: EventPayload) -> bool:
         """validate the event payload"""
         required_fields = ["hook", "sender"]
@@ -74,6 +61,10 @@ class BaseWebhookProcessor(AbstractWebhookProcessor, ABC):
         """handle webhook event"""
         results = await self.process_event(payload, resource.kind)
         return results is not None
+
+    async def authenticate(self, payload: EventPayload, headers: EventHeaders) -> bool:
+        """authenticate webhook based on payload and headers"""
+        raise NotImplementedError()
 
     @abstractmethod
     async def process_event(
@@ -95,19 +86,14 @@ class BaseWebhookProcessor(AbstractWebhookProcessor, ABC):
         event_type: GitHubWebhookEventType,
     ) -> bool:
         """validate webhook event"""
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     async def create_webhook(
         self,
         webhook_url: str,
         repo_slug: str,
-        name: str = "ocean-port-integration",
+        name: Optional[str] = None,
     ) -> Coroutine[Any, Any, None] | None:
         """create webhook event"""
-        raise NotImplementedError()
-
-    @abstractmethod
-    async def subscribe_to_webhooks(self):
-        """subscribe to webhooks: iteratively call `self.create_webhook()`"""
         raise NotImplementedError()

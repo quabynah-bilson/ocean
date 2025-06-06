@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 class GitHubWebhookEvent(StrEnum):
     """preferred events for GitHub webhooks"""
+
     ISSUES = "issues"
     PR = "pull_request"
     REPOSITORY = "repository"
@@ -17,12 +18,14 @@ class GitHubWebhookEvent(StrEnum):
 
 class GitHubWebhookEventType(StrEnum):
     """supported event types for GitHub webhooks"""
+
     REPOSITORY = "Repository"
 
 
 @dataclass
 class WebhookEventPayloadConfig(BaseModel):
     """config section for webhook payload"""
+
     url: str
     content_type: str = "json"
     insecure_ssl: str = "0"
@@ -32,6 +35,7 @@ class WebhookEventPayloadConfig(BaseModel):
 @dataclass
 class WebhookEventPayload(BaseModel):
     """payload for webhook event when created/updated"""
+
     type: GitHubWebhookEventType
     active: bool
     events: list[GitHubWebhookEvent]
@@ -47,3 +51,4 @@ class CreateWebhookEventRequest(BaseModel):
     events: list[GitHubWebhookEvent]
     config: WebhookEventPayloadConfig
     active: bool = True
+    repo_slug: Optional[str] = None

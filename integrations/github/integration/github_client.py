@@ -3,7 +3,6 @@ from typing import AsyncGenerator, Any, Optional
 from httpx import HTTPError, HTTPStatusError
 from loguru import logger
 
-from integrations.github.integration.utils.auth import AuthClient
 from port_ocean.context.ocean import ocean
 from port_ocean.utils import http_async_client
 from port_ocean.utils.cache import cache_iterator_result
@@ -11,6 +10,7 @@ from .rate_limiter import (
     RollingWindowLimiter,
     GitHubRateLimiter,
 )
+from .utils.auth import AuthClient
 
 # constants
 DEFAULT_PAGE_SIZE = 100

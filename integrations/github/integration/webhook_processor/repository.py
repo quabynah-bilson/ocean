@@ -4,11 +4,6 @@ from typing import Optional, Any, AsyncGenerator, Coroutine
 from httpx import HTTPStatusError, HTTPError
 from loguru import logger
 
-from integrations.github.integration.github.client import IntegrationClient
-from integrations.github.integration.utils.auth import AuthClient
-from integrations.github.integration.utils.exceptions import (
-    MissingWebhookSecretException,
-)
 from port_ocean.context.ocean import ocean
 from port_ocean.core.handlers.webhook.webhook_event import (
     EventPayload,
@@ -16,7 +11,6 @@ from port_ocean.core.handlers.webhook.webhook_event import (
     EventHeaders,
 )
 from port_ocean.utils import http_async_client
-from port_ocean.utils.async_iterators import stream_async_iterators_tasks
 from .base import BaseWebhookProcessor
 from .events import (
     GitHubWebhookEventType,
@@ -24,25 +18,27 @@ from .events import (
     GitHubWebhookEvent,
     WebhookEventPayloadConfig,
 )
+from .exceptions import MissingWebhookSecretException
 
 
 class RepositoryWebhookProcessor(BaseWebhookProcessor, ABC):
     """processor for repository webhooks"""
 
-    def __init__(self, client: IntegrationClient, auth_client: AuthClient):
+    def __init__(
+        self, client_base_url: str, headers: Optional[dict[str, str]] = None
+    ) -> None:
         super().__init__()
-        self.client = client
         self._http_client = http_async_client
-        self._http_client.headers.update(auth_client.get_headers())
-        self.base_url = client.base_url
+        self._http_client.headers.update(headers)
+        self.base_url = client_base_url
 
     @classmethod
     def create_from_ocean_config_and_integration(
         cls,
-        client: IntegrationClient,
-        auth_client: AuthClient,
+        client_base_url: str,
+        headers: Optional[dict[str, str]] = None,
     ) -> "RepositoryWebhookProcessor":
-        return cls(client=client, auth_client=auth_client)
+        return cls(client_base_url, headers)
 
     async def _send_api_request(
         self,
@@ -125,7 +121,7 @@ class RepositoryWebhookProcessor(BaseWebhookProcessor, ABC):
         self,
         webhook_url: str,
         repo_slug: str,
-        name: str = "web",
+        name: Optional[str] = "ocean-port-integration",
     ) -> Coroutine[Any, Any, None] | None:
         """subscribe to webhook"""
         webhook_secret = ocean.integration_config.get("webhook_secret", None)
@@ -166,8 +162,8 @@ class RepositoryWebhookProcessor(BaseWebhookProcessor, ABC):
             )
             logger.info(f"Created webhook: {name} => {response.get('url')}")
 
-        except BaseException as e:
-            self.on_failed(e)
+        except Exception as e:
+            await self.on_error(e)
 
     async def validate_webhook(
         self,
@@ -184,22 +180,6 @@ class RepositoryWebhookProcessor(BaseWebhookProcessor, ABC):
                     return True
         return False
 
-    async def subscribe_to_webhooks(self) -> None:
-        """fetch all repositories and subscribe to webhooks"""
-
-        base_url = ocean.app.base_url
-        if base_url:
-            async for repositories in self.client.get_repositories():
-                tasks = [
-                    self.create_webhook(
-                        webhook_url=f"{self.base_url}/integrations/webhook",
-                        repo_slug=repo.get("name"),
-                    )
-                    for repo in repositories
-                ]
-                async for webhooks in stream_async_iterators_tasks(*tasks):
-                    logger.info(f"webhooks created: {webhooks}")
-
     async def process_event(
         self, payload: EventPayload, kind: str
     ) -> WebhookEventRawResults:
@@ -209,25 +189,19 @@ class RepositoryWebhookProcessor(BaseWebhookProcessor, ABC):
         )
 
         # get metadata
-        repo_slug = payload.get("repository", {}).get("name", None)
-        pr_number = payload.get("pull_request", {}).get("number", None)
+        repo = payload.get("repository", {})
+        repo_slug = repo.get("name", None) if repo else None
+        pr = payload.get("pull_request", {})
+        pr_number = pr.get("number", None) if pr else None
 
         if repo_slug is None:
             logger.info(f"Skipping webhook event for {kind}")
             return results
 
-        if pr_number is None:
-            # fetch repo details and append to raw results
-            async for repo in self.client.get_repository(slug=str(repo_slug)):
-                if repo is not None:
-                    results.updated_raw_results.append(repo)
+        if pr_number is not None:
+            results.updated_raw_results.append(pr)
         else:
-            # fetch PR details and append to raw results
-            async for pr in self.client.get_pull_request(
-                repo_slug=str(repo_slug), number=int(str(pr_number))
-            ):
-                if pr is not None:
-                    results.updated_raw_results.append(pr)
+            results.updated_raw_results.append(repo)
 
         logger.info(f"Processed results: {results.updated_raw_results}")
         return results
