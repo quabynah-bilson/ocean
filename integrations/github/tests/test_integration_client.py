@@ -2,8 +2,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from integrations.github.integration.utils.auth import AuthClient
-from integrations.github.integration.clients.github import IntegrationClient
+from integrations.github.clients.github import IntegrationClient
+from integrations.github.utils.auth import AuthClient
 from port_ocean.context.ocean import initialize_port_ocean_context, ocean
 from port_ocean.exceptions.context import PortOceanContextAlreadyInitializedError
 from port_ocean.utils.async_iterators import stream_async_iterators_tasks

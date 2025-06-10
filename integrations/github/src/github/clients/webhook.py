@@ -1,10 +1,9 @@
 from loguru import logger
-
+import asyncio
 from port_ocean.context.ocean import ocean
-from port_ocean.utils.async_iterators import stream_async_iterators_tasks
-from .github_client import IntegrationClient
-from .utils.auth import AuthClient
-from .webhook_processor.repository import RepositoryWebhookProcessor
+from src.github.clients.github import IntegrationClient
+from src.github.utils.auth import AuthClient
+from src.github.webhook_processor.repository import RepositoryWebhookProcessor
 
 
 class WebhookClient:
@@ -15,13 +14,13 @@ class WebhookClient:
     ) -> None:
         self.client = client
         self.auth_client = auth_client
-        self.app_host = ocean.config.integration.get("app_host", None)
+        self.app_host = ocean.app.base_url
 
     async def setup_webhooks(self) -> None:
         """set up processors and subscribe to webhooks"""
 
         if self.app_host is None:
-            logger.error(f"app_host not set, skipping webhook setup")
+            logger.error("app_host not set, skipping webhook setup")
             return
 
         # repository webhook processor config
@@ -33,15 +32,16 @@ class WebhookClient:
 
         async for repos in self.client.get_repositories():
             # tasks to perform for webhook subscriptions
-            tasks = [
-                repo_processor.create_webhook(
+            tasks = []
+            for repo in repos:
+                task = repo_processor.create_webhook(
                     webhook_url=f"{self.app_host}/integrations/webhook",
                     repo_slug=repo.get("name"),
                     name=repo.get("name"),
                 )
-                for repo in repos
-            ]
+                if task is not None:
+                    tasks.append(task)
 
             # subscribe to all webhooks asynchronously
-            async for task in stream_async_iterators_tasks(*tasks):
-                await task
+            if tasks:
+                await asyncio.gather(*tasks)

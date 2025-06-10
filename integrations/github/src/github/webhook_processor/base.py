@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 from abc import abstractmethod, ABC
+from datetime import datetime
 from typing import Any, Coroutine, Optional
 
 from loguru import logger
@@ -15,21 +16,28 @@ from port_ocean.core.handlers.webhook.webhook_event import (
     EventPayload,
     EventHeaders,
     WebhookEventRawResults,
+    WebhookEvent,
 )
-from .events import GitHubWebhookEventType, CreateWebhookEventRequest
+from .events import GitHubWebhookEventType
 
 
 class BaseWebhookProcessor(AbstractWebhookProcessor, ABC):
     """base processor for webhook events"""
 
     def __init__(self):
-        super().__init__()
+        super().__init__(
+            WebhookEvent(
+                trace_id=f"{datetime.now().strftime('%Y%m%d%H%M%S%f')}",
+                payload=dict(),
+                headers=dict(),
+            )
+        )
         self.webhook_secret = ocean.integration_config.get("webhook_secret", None)
 
     def _verify_signature(self, signature: str, data: dict[str, Any]) -> bool:
         if self.webhook_secret is None:
             logger.warning(
-                f"webhook_secret not configured for GitHub integration. Skipping webhooks."
+                "webhook_secret is not configured for GitHub integration. Skipping webhooks."
             )
             return False
 

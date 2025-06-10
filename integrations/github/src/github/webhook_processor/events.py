@@ -1,5 +1,4 @@
-import datetime
-from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 from typing import Optional
 
@@ -22,17 +21,15 @@ class GitHubWebhookEventType(StrEnum):
     REPOSITORY = "Repository"
 
 
-@dataclass
 class WebhookEventPayloadConfig(BaseModel):
     """config section for webhook payload"""
 
     url: str
-    content_type: str = "json"
-    insecure_ssl: str = "0"
+    content_type: str
+    insecure_ssl: str
     secret: Optional[str] = None
 
 
-@dataclass
 class WebhookEventPayload(BaseModel):
     """payload for webhook event when created/updated"""
 
@@ -45,7 +42,6 @@ class WebhookEventPayload(BaseModel):
     config: Optional[WebhookEventPayloadConfig] = None
 
 
-@dataclass
 class CreateWebhookEventRequest(BaseModel):
     name: str
     events: list[GitHubWebhookEvent]

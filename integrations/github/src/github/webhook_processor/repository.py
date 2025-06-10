@@ -7,10 +7,12 @@ from loguru import logger
 from port_ocean.context.ocean import ocean
 from port_ocean.core.handlers.webhook.webhook_event import (
     EventPayload,
+    WebhookEvent,
     WebhookEventRawResults,
     EventHeaders,
 )
 from port_ocean.utils import http_async_client
+from src.github.utils.kind import ObjectKind
 from .base import BaseWebhookProcessor
 from .events import (
     GitHubWebhookEventType,
@@ -50,7 +52,6 @@ class RepositoryWebhookProcessor(BaseWebhookProcessor, ABC):
         is_response_list: bool = True,
     ) -> tuple[Any, dict[str, str]]:
         """Send a request to GitHub API with error handling."""
-        logger.info(f"Sending request to {url}")
 
         try:
             response = await self._http_client.request(
@@ -92,23 +93,34 @@ class RepositoryWebhookProcessor(BaseWebhookProcessor, ABC):
         """handles HTTP calls to the API server"""
 
         try:
-            response, headers = await self._send_api_request(
+            response, _ = await self._send_api_request(
                 method=method,
                 url=url,
                 params=params,
                 values_key=values_key,
                 json_data=json_data,
             )
-            logger.info(f"Fetched {len(response)} items from {url}")
             yield response
 
         except BaseException as e:
             logger.error(f"An error occurred while fetching {url}: {e}")
             yield []
 
+    async def should_process_event(self, event: WebhookEvent) -> bool:
+        try:
+            verified = await self._verify_webhook_signature(event._original_request)
+            return verified and event.headers["x-github-event"] == GitHubWebhookEvent.REPOSITORY
+        except ValueError:
+            return False
+
+    async def get_matching_kinds(self, event: WebhookEvent) -> list[str]:
+        if event.headers["x-github-event"] == GitHubWebhookEvent.REPOSITORY:
+            return [ObjectKind.REPOSITORY]
+        return []
+    
     async def authenticate(self, payload: EventPayload, headers: EventHeaders) -> bool:
         verified = self._verify_signature(
-            data=payload, signature=headers.get("x-hub-signature-256")
+            data=payload, signature=headers.get("x-hub-signature-256", "")
         )
         preferred_event = headers.get("x-github-event")
         logger.info(f"Verified {preferred_event}: {verified}")
@@ -139,7 +151,7 @@ class RepositoryWebhookProcessor(BaseWebhookProcessor, ABC):
             return None
 
         webhook_request = CreateWebhookEventRequest(
-            name=name,
+            name=str(name),
             events=[
                 GitHubWebhookEvent.ISSUES,
                 GitHubWebhookEvent.REPOSITORY,
@@ -150,17 +162,18 @@ class RepositoryWebhookProcessor(BaseWebhookProcessor, ABC):
             config=WebhookEventPayloadConfig(
                 url=webhook_url,
                 secret=webhook_secret,
+                content_type="json",
+                insecure_ssl="0",
             ),
         )
         try:
-            logger.info(f"Creating webhook: {name} => {webhook_url}")
             response, _ = await self._send_api_request(
                 method="POST",
                 url=f"{self.base_url}/repos/{repo_slug}/hooks",
-                json_data=dict(webhook_request),
+                json_data=webhook_request.dict(),
                 is_response_list=False,
             )
-            logger.info(f"Created webhook: {name} => {response.get('url')}")
+            return response
 
         except Exception as e:
             await self.on_error(e)

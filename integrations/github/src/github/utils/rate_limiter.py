@@ -397,34 +397,28 @@ class RollingWindowLimiter(AbstractAsyncContextManager[None]):
         self, func: Callable[..., Coroutine[Any, Any, Any]]
     ) -> Callable[..., Coroutine[Any, Any, Any]]:
         """
-        Decorator to rate limit an asynchronous function.
-
-        This decorator applies rate limiting to the decorated coroutine function.
-        The function will only be executed when the rate limit allows it.
+        Decorator that applies rate limiting to an async function.
 
         Args:
-            func: The coroutine function to rate limit.
+            func: The async function to rate limit.
 
         Returns:
-            A wrapped coroutine function that respects the rate limit.
-
-        Example:
-            @limiter.limit_function
-            async def my_api_call(arg1, arg2):
-                return await some_external_api(arg1, arg2)
+            A wrapped version of the function that respects rate limits.
         """
+        import inspect
+        is_async_generator = inspect.isasyncgenfunction(func)
 
-        async def wrapper(*args: Any, **kwargs: Any) -> Any:
-            start_time = time.monotonic()
-            try:
+        if is_async_generator:
+            async def generator_wrapper(*args: Any, **kwargs: Any) -> Any:
                 async with self:
-                    result = await func(*args, **kwargs)
-            finally:
-                elapsed = time.monotonic() - start_time
-                self._logger.debug(f"Rate-limited function completed in {elapsed:.6f}s")
-            return result
-
-        return wrapper
+                    async for item in func(*args, **kwargs):
+                        yield item
+            return generator_wrapper
+        else:
+            async def function_wrapper(*args: Any, **kwargs: Any) -> Any:
+                async with self:
+                    return await func(*args, **kwargs)
+            return function_wrapper
 
     def get_metrics(self) -> Dict[str, Any]:
         """

@@ -6,17 +6,17 @@ from loguru import logger
 from port_ocean.context.ocean import ocean
 from port_ocean.utils import http_async_client
 from port_ocean.utils.cache import cache_iterator_result
-from .rate_limiter import (
+from src.github.utils.rate_limiter import (
     RollingWindowLimiter,
     GitHubRateLimiter,
 )
-from .utils.auth import AuthClient
+from src.github.utils.auth import AuthClient
 
 # constants
 DEFAULT_PAGE_SIZE = 100
 
 # rate limiter
-RATE_LIMITER: RollingWindowLimiter = RollingWindowLimiter(
+limiter: RollingWindowLimiter = RollingWindowLimiter(
     limit=GitHubRateLimiter.LIMIT,
     window=GitHubRateLimiter.WINDOW_TTL,
 )
@@ -45,7 +45,6 @@ class IntegrationClient:
         values_key: Optional[str] = None,
     ) -> tuple[list[dict[str, Any]] | dict[str, Any], dict[str, str]]:
         """Send a request to GitHub API with error handling."""
-        logger.info(f"Sending request to {url}")
 
         try:
             response = await self._client.request(
@@ -74,6 +73,7 @@ class IntegrationClient:
             logger.error(f"Failed to send {method} request to url {url}: {str(e)}")
             raise e
 
+    @limiter.limit_function
     async def _fetch_data(
         self,
         url: str,
@@ -91,41 +91,37 @@ class IntegrationClient:
             }
 
         while True:
-            async with RATE_LIMITER:
-                try:
-                    response, headers = await self._send_api_request(
-                        method=method, url=url, params=params, values_key=values_key
-                    )
-                    logger.info(f"Fetched {len(response)} items from {url}")
-                    yield response
+            try:
+                response, headers = await self._send_api_request(
+                    method=method, url=url, params=params, values_key=values_key
+                )
+                yield response
 
-                    # get the `Link` header from the last response
-                    link_header = headers.get("link")
+                # get the `Link` header from the last response
+                link_header = headers.get("link")
 
-                    if not link_header:
-                        # no new pages
-                        logger.info(f"Link header not found for {url}. Skipping")
-                        break
-
-                    for link in link_header.split(","):
-                        parts = link.strip().split(";")
-                        url = parts[0].strip("<>")
-                        rel = parts[1].strip()
-                        if 'rel="next"' in rel:
-                            # update `url` and params for the next request
-                            url = url
-                            params = None
-                            logger.info(f"Next page: {url}")
-                            break
-                    else:  # no break occurred - no next link found
-                        logger.info(f"No more pages available from {url}")
-                        break
-
-                except BaseException as e:
-                    logger.error(f"An error occurred while fetching {url}: {e}")
-                    yield []
+                if not link_header:
+                    # no new pages
                     break
 
+                for link in link_header.split(","):
+                    parts = link.strip().split(";")
+                    url = parts[0].strip("<>")
+                    rel = parts[1].strip()
+                    if 'rel="next"' in rel:
+                        # update `url` and params for the next request
+                        url = url
+                        params = None
+                        break
+                else:  # no break occurred - no next link found
+                    break
+
+            except BaseException as e:
+                logger.error(f"An error occurred while fetching {url}: {e}")
+                yield []
+                break
+
+    @limiter.limit_function
     async def _fetch_single_data(
         self,
         url: str,
@@ -134,17 +130,15 @@ class IntegrationClient:
     ) -> AsyncGenerator[dict[str, Any], None]:
         """handles HTTP calls to the API server"""
 
-        async with RATE_LIMITER:
-            try:
-                response, _ = await self._send_api_request(
-                    method=method, url=url, params={}, values_key=value_key
-                )
-                logger.info(f"Fetched {len(response)} items from {url}")
-                yield response
+        try:
+            response, _ = await self._send_api_request(
+                method=method, url=url, params={}, values_key=value_key
+            )
+            yield response
 
-            except BaseException as e:
-                logger.error(f"An error occurred while fetching {url}: {e}")
-                yield {}
+        except BaseException as e:
+            logger.error(f"An error occurred while fetching {url}: {e}")
+            yield {}
 
     @cache_iterator_result()
     async def get_repositories(self) -> AsyncGenerator[list[dict[str, Any]], None]:
@@ -184,13 +178,11 @@ class IntegrationClient:
             f"{self.base_url}/repos/{self._auth_client.get_user_agent()}/{repo_slug}/actions/workflows",
             values_key="workflows",
         ):
-            logger.info(f"Found {len(workflows)} workflows for {repo_slug}")
             yield workflows
 
     async def get_teams(self) -> AsyncGenerator[list[dict[str, Any]], None]:
         """get all teams for the current user"""
         async for teams in self._fetch_data(f"{self.base_url}/user/teams"):
-            logger.info(f"Found {len(teams)} teams for current user")
             yield teams
 
     async def get_pull_requests(
@@ -201,7 +193,6 @@ class IntegrationClient:
         async for prs in self._fetch_data(
             f"{self.base_url}/repos/{self._auth_client.get_user_agent()}/{repo_slug}/pulls"
         ):
-            logger.info(f"Found {len(prs)} prs for {repo_slug}")
             yield prs
 
     async def get_pull_request(

@@ -3,6 +3,9 @@ name = "github"
 version = "0.1.0-beta"
 description = "An integration used to import GitHub resources into Port"
 authors = ["Dennis Bilson <quabynahdennis@gmail.com>"]
+packages = [
+    { include = "github", from = "src" }
+]
 
 [tool.poetry.dependencies]
 python = "^3.12"

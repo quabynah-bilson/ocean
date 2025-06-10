@@ -3,11 +3,11 @@ from typing import Any
 from port_ocean.context.ocean import ocean
 from port_ocean.core.ocean_types import ASYNC_GENERATOR_RESYNC_TYPE
 from port_ocean.utils.async_iterators import stream_async_iterators_tasks
-from .integration.github_client import IntegrationClient
-from .integration.utils.auth import AuthClient
-from .integration.utils.kind import ObjectKind
-from .integration.webhook_client import WebhookClient
-from .integration.webhook_processor.repository import RepositoryWebhookProcessor
+from src.github.clients.github import IntegrationClient
+from src.github.utils.auth import AuthClient
+from src.github.utils.kind import ObjectKind
+from src.github.clients.webhook import WebhookClient
+from src.github.webhook_processor.repository import RepositoryWebhookProcessor
 
 
 def init_auth_client() -> "AuthClient":
@@ -66,7 +66,6 @@ async def resync_issues(kind: str) -> ASYNC_GENERATOR_RESYNC_TYPE:
             async for issues in stream_async_iterators_tasks(*tasks):
                 yield issues
 
-
 # resync workflows
 @ocean.on_resync(ObjectKind.WORKFLOW)
 async def resync_workflows(kind: str) -> ASYNC_GENERATOR_RESYNC_TYPE:
@@ -80,7 +79,6 @@ async def resync_workflows(kind: str) -> ASYNC_GENERATOR_RESYNC_TYPE:
             async for workflows in stream_async_iterators_tasks(*tasks):
                 yield workflows
 
-
 # resync teams
 @ocean.on_resync(ObjectKind.TEAM)
 async def resync_teams(kind: str) -> ASYNC_GENERATOR_RESYNC_TYPE:
@@ -88,7 +86,6 @@ async def resync_teams(kind: str) -> ASYNC_GENERATOR_RESYNC_TYPE:
         client = init_client()
         async for teams in client.get_teams():
             yield teams
-
 
 # resync pull_requests
 @ocean.on_resync(ObjectKind.PULL_REQUEST)
@@ -102,7 +99,6 @@ async def resync_pull_requests(kind: str) -> ASYNC_GENERATOR_RESYNC_TYPE:
             ]
             async for prs in stream_async_iterators_tasks(*tasks):
                 yield prs
-
 
 @ocean.on_start()
 async def setup_webhooks() -> None:
