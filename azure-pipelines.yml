@@ -23,7 +23,7 @@ steps:
   displayName: 'Use Python $(python.version)'
 
 - script: |
-    cd integrations/servicenow
+    cd integrations/azure-devops
     python -m pip install --upgrade pip
     pip install -r requirements.txt
   displayName: 'Install dependencies'
