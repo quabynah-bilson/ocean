@@ -90,6 +90,26 @@ class ArgocdClient:
                 return []
             raise e
 
+    async def get_generic_resources(self, kind: str) -> list[dict[str, Any]]:
+        """Fetch resources for a generic ArgoCD API kind not explicitly defined in ObjectKind.
+
+        The kind should match the ArgoCD API path segment (e.g., 'repositories', 'certificates', 'gpgkeys').
+        The response is expected to have an 'items' key containing a list of resources.
+        """
+        url = f"{self.api_url}/{kind}"
+        try:
+            response_data = await self._send_api_request(url=url)
+            if not response_data:
+                return []
+            if "items" in response_data:
+                return response_data["items"] or []
+            return [response_data]
+        except Exception as e:
+            logger.error(f"Failed to fetch generic resources of kind {kind}: {e}")
+            if self.ignore_server_error:
+                return []
+            raise e
+
     async def get_application_by_name(self, name: str) -> dict[str, Any]:
         url = f"{self.api_url}/{ObjectKind.APPLICATION}s/{name}"
         application = await self._send_api_request(url=url)
