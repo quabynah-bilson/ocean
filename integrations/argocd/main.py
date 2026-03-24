@@ -20,9 +20,17 @@ async def on_resources_resync(kind: str) -> RAW_RESULT:
     if kind in iter(ResourceKindsWithSpecialHandling):
         logger.info(f"Kind {kind} has a special handling. Skipping...")
         return []
-    else:
-        argocd_client = init_client()
-        return await argocd_client.get_resources(resource_kind=ObjectKind(kind))
+
+    argocd_client = init_client()
+
+    try:
+        object_kind = ObjectKind(kind)
+        return await argocd_client.get_resources(resource_kind=object_kind)
+    except ValueError:
+        logger.info(
+            f"Kind '{kind}' is not a predefined ArgoCD kind, fetching as generic resource from /api/v1/{kind}"
+        )
+        return await argocd_client.get_generic_resources(kind=kind)
 
 
 @ocean.on_resync(kind=ResourceKindsWithSpecialHandling.DEPLOYMENT_HISTORY)

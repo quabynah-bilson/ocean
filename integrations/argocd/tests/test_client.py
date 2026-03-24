@@ -269,3 +269,70 @@ async def test_get_managed_resources(
                 mock_request.assert_called_with(
                     url=f"{mock_argocd_client.api_url}/{ObjectKind.APPLICATION}s/{application_name}/managed-resources"
                 )
+
+
+@pytest.mark.asyncio
+async def test_get_generic_resources_with_items(
+    mock_argocd_client: ArgocdClient,
+) -> None:
+    response_data = {
+        "items": [
+            {"type": "git", "repo": "https://github.com/example/repo.git"},
+            {"type": "helm", "repo": "https://charts.example.com"},
+        ]
+    }
+    with patch.object(
+        mock_argocd_client, "_send_api_request", new_callable=AsyncMock
+    ) as mock_request:
+        mock_request.return_value = response_data
+        resources = await mock_argocd_client.get_generic_resources(
+            kind="repositories"
+        )
+        assert resources == response_data["items"]
+        mock_request.assert_called_with(
+            url=f"{mock_argocd_client.api_url}/repositories"
+        )
+
+
+@pytest.mark.asyncio
+async def test_get_generic_resources_without_items(
+    mock_argocd_client: ArgocdClient,
+) -> None:
+    response_data = {"version": "v2.5.0", "buildDate": "2023-01-01"}
+    with patch.object(
+        mock_argocd_client, "_send_api_request", new_callable=AsyncMock
+    ) as mock_request:
+        mock_request.return_value = response_data
+        resources = await mock_argocd_client.get_generic_resources(kind="settings")
+        assert resources == [response_data]
+        mock_request.assert_called_with(
+            url=f"{mock_argocd_client.api_url}/settings"
+        )
+
+
+@pytest.mark.asyncio
+async def test_get_generic_resources_empty_items(
+    mock_argocd_client: ArgocdClient,
+) -> None:
+    with patch.object(
+        mock_argocd_client, "_send_api_request", new_callable=AsyncMock
+    ) as mock_request:
+        mock_request.return_value = {"items": []}
+        resources = await mock_argocd_client.get_generic_resources(
+            kind="repositories"
+        )
+        assert resources == []
+
+
+@pytest.mark.asyncio
+async def test_get_generic_resources_error_returns_empty(
+    mock_argocd_client: ArgocdClient,
+) -> None:
+    with patch.object(
+        mock_argocd_client, "_send_api_request", new_callable=AsyncMock
+    ) as mock_request:
+        mock_request.side_effect = Exception("API error")
+        resources = await mock_argocd_client.get_generic_resources(
+            kind="repositories"
+        )
+        assert resources == []
